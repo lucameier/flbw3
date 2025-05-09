@@ -118,7 +118,7 @@ with tab_trends:
 # Mitarbeiter-Tab
 with tab_employees:
     st.header("Top-Mitarbeiter nach YTD-Stunden")
-    top_n = st.slider("Anzahl Top-Mitarbeiter", 5, 20, 10)
+    top_n = st.slider("Anzahl Top-Mitarbeiter", 5, 100, 10)
     emp_data = df_filtered.groupby('Name')['ytd'].sum().reset_index().nlargest(top_n, 'ytd')
     chart_emp = alt.Chart(emp_data).mark_bar().encode(
         x=alt.X('ytd:Q', title='Stunden'),
