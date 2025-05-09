@@ -224,7 +224,6 @@ def transform_data(file_buffer):
         aggfunc="sum",
         fill_value=0
     ).reset_index()
-    "
 
     st.text("pivot_df")
 
