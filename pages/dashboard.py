@@ -124,31 +124,6 @@ def show_arbeitszeiten():
         st.plotly_chart(fig_sb, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("Forecast der nächsten 3 Monate (ETS)")
-        try:
-            from statsmodels.tsa.holtwinters import ExponentialSmoothing
-            ts = dff[monate].sum().rename_axis("Monat").reset_index(name="Stunden")
-            ts["Datum"] = pd.to_datetime("2025-" + ts["Monat"].map({
-                m: i+1 for i, m in enumerate(monate)
-            }).astype(str) + "-01")
-            ts = ts.set_index("Datum")["Stunden"]
-            model = ExponentialSmoothing(ts, trend="add", seasonal="add", seasonal_periods=12).fit()
-            fc = model.forecast(3).rename("Forecast").reset_index()
-            fc["Monat"] = fc["index"].dt.strftime("%B")
-
-            base = alt.Chart(ts.reset_index()).encode(
-                x=alt.X("index:T", title="Datum"),
-                y=alt.Y("Stunden:Q")
-            )
-            orig = base.mark_line().encode(tooltip=["index","Stunden"])
-            fut  = alt.Chart(fc).mark_line(strokeDash=[5,5], color="orange").encode(
-                x="index:T", y="Forecast:Q", tooltip=["Monat","Forecast"]
-            )
-            st.altair_chart((orig + fut).interactive(), use_container_width=True)
-        except ImportError:
-            st.warning("Für den Forecast benötigst du `statsmodels`. Installiere mit `pip install statsmodels`.")
-
-        st.markdown("---")
         st.subheader("Interaktive Tabellen-Analyse")
         st.info("Sortiere und filtere direkt in der Tabelle.")
         st.dataframe(dff, use_container_width=True)
