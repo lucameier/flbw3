@@ -1,10 +1,16 @@
 """
-Created on Fri Aug 18 13:52:13 2023
-Angepasster Transformer für die neue SAP-Struktur inkl.:
- - ICT-Klassifizierung (über Kontierungsbeschreibung und spezifische Auftragsnummern)
- - Unterkategorie-Ableitung (mit find_keyword, das nur den Textanfang prüft)
- - Pivotierung nach den korrekten Feldern
+FLBW Daten Transformation für die neue SAP-Struktur
+=================================================
+
+Diese Anwendung transformiert FLBW-Daten aus dem neuen SAP-Exportformat in ein standardisiertes Analyseformat.
+Die Transformation umfasst folgende Hauptfunktionen:
+- ICT-Klassifizierung basierend auf Kontierungsbeschreibung und spezifischen Auftragsnummern
+- Unterkategorie-Ableitung mit find_keyword (prüft nur den Textanfang)
+- Pivotierung nach definierten Feldern
+- Automatische Status-Erkennung (Arbeit, Arbeit Unproduktiv, Abwesend)
+
 @author: Luca Meier
+@date: 09.05.2025
 """
 
 import pandas as pd
@@ -12,7 +18,9 @@ import streamlit as st
 import io
 import re
 
-# Streamlit-Seiteneinstellungen
+# Streamlit-Konfiguration
+# ----------------------
+# Setzt die grundlegenden Einstellungen für die Streamlit-Webanwendung
 st.set_page_config(
     page_title="FLBW Daten Transformation (Neue SAP-Struktur)",
     page_icon=":chart_with_upwards_trend:",
@@ -23,10 +31,19 @@ st.set_page_config(
 )
 
 def transform_data(file_buffer):
-    # Excel-Datei aus dem Blatt "Sheet1" einlesen
+    """
+    Transformiert die FLBW-Daten aus dem SAP-Export in ein standardisiertes Analyseformat.
+    
+    Args:
+        file_buffer: Der Inhalt der hochgeladenen Excel-Datei
+        
+    Returns:
+        DataFrame: Die transformierten und pivotierten Daten
+    """
+    # Excel-Datei einlesen
     df = pd.read_excel(file_buffer, sheet_name="Sheet1", header=0)
     
-    # Spalten umbenennen (Mapping an die neuen Bezeichnungen)
+    # Spaltenumbenennung für bessere Lesbarkeit und Standardisierung
     df.rename(columns={
         "OE": "Organisationseinheit",
         "Personalnummer": "U-Nummer",
@@ -41,116 +58,30 @@ def transform_data(file_buffer):
         "Empfänger-PSP-Element": "Projektdefinition",
         "Lohnart-Langtext": "Lohnart-Langtext",
         "Anzahl (Maßeinheit)": "Betrag",
-        "Text AnAbArt": "Text AnAbArt",
-        "Ab-/Anwesenheitsart": "Abwesenheitsart"
+        "Text AnAbArt": "Text AnAbArt"
     }, inplace=True)
     
-    # Datum in datetime konvertieren und den Monat extrahieren
+    # Datumsverarbeitung
     df["Datum"] = pd.to_datetime(df["Datum"], format="%d.%m.%Y", errors="coerce")
     df["Monat"] = df["Datum"].dt.month
 
-    # Zusätzliche Felder initialisieren
+    # Initialisierung der Kategorisierungsfelder
     df["Kategorie"] = ""
     df["Unterkategorie"] = ""
     df["Unterkategorie Name"] = ""
     
-    # Sicherstellen, dass "Betrag" numerisch ist
+    # Konvertierung des Betrags in numerische Werte
     df["Betrag"] = pd.to_numeric(df["Betrag"], errors="coerce").fillna(0)
     
-    # Mapping für Abwesenheitsart: Codes werden in ausgeschriebene Form umgewandelt
-    abwesenheitsart_mapping = {
-        "876F": "1. Mai Veranstaltungen",
-        "": "ADM, Führung und Administration",
-        "8716": "Adoptionsurlaub",
-        "876C": "Aktiver Spitzensport",
-        "8713": "Arbeitsenthebung",
-        "875L": "Arbeitsjubiläum",
-        "2270": "Arbeitsunterbrechung",
-        "2000": "Arbeitszeit",
-        "8712": "ausserschul. Jugendarbeit",
-        "875K": "Ausübung öffentl. Ämter",
-        "1120": "Auszeit in Tagen",
-        "2002": "BBD",
-        "2004": "BBD Nachtdienst 3",
-        "2003": "BBD Überzeit 1",
-        "876G": "Bild. Veranstaltung Gewerksch.",
-        "406": "BU teilarbeitsfähig",
-        "875M": "Entlassung Wehrpflicht",
-        "879A": "Erziehungsurlaub",
-        "875F": "Familiäre Gründe",
-        "100": "Ferien",
-        "876A": "Feuerwehr / Einsatz b. Alarm",
-        "876B": "Feuerwehr / Kurs",
-        "970": "Freistellung PeKo",
-        "8714": "Freistetzung",
-        "876H": "Freiwilliger Zivilschutz",
-        "879B": "Gestzl. Betr. Urlaub Kind",
-        "875A": "Hochzeit",
-        "1140": "Ind. Bez. Urlaub IBU",
-        "876I": "Jugend u. Sport",
-        "211": "K (Mil) teilarbeitsfähig",
-        "9": "Kasernierung",
-        "2090": "Kasernierung Überzeit",
-        "925": "Komp. Gleitzeit",
-        "920": "Komp. Nachtdienst 3",
-        "800": "Komp. Pikett",
-        "900": "Komp. Überzeit 1",
-        "201": "Krank teilarbeitsfähig",
-        "200": "Krankheit",
-        "210": "Krankheit (Militär)",
-        "": "KVP, Kaizen / KVP",
-        "": "LA1624, P-UHR RIE/FSY Prod-STD",
-        "876D": "Ltg. Behindertensport",
-        "300": "Militär / Zivilschutz",
-        "878A": "Mutterschaftsurlaub",
-        "8715": "Mutterschutz",
-        "401": "NBU teilarbeitsfähig",
-        "2110": "Pause / Nachtzu / ArbOrt",
-        "2100": "Pause AZG auswärts",
-        "875G": "Pflege der Kinder",
-        "5": "Pikett Mittel",
-        "1": "Pikettdienst 1 streng",
-        "2": "Pikettdienst 2 normal",
-        "3": "Pikettdienst 3 leicht",
-        "2070": "Piketteinsatz",
-        "960": "Reisezeitgutschrift",
-        "2201": "Schichtlage ArG",
-        "2202": "Schichtlage AZG",
-        "": "SCHULU, Schulungen",
-        "950": "Seminar / Kurs",
-        "": "SITZ, Sitzungen",
-        "875H": "Stellenbewerbungen",
-        "875C": "Tod Ehegatte, Eltern, Kind",
-        "875E": "Tod GrEltern, UrGrEltern",
-        "875D": "Tod SchEltern, Geschwister",
-        "110": "Treueprämie (Zeit)",
-        "940": "Überzeit",
-        "405": "Unfall (BU)",
-        "411": "Unfall (Mil) teilarbeit",
-        "410": "Unfall (Militär)",
-        "400": "Unfall (NBU)",
-        "8719": "Untersuch SUVA",
-        "8717": "Urlaub Berufsbildung",
-        "877A": "Urlaubsscheck 1/1",
-        "877B": "Urlaubsscheck 1/2",
-        "875N": "Vaterschaftsurlaub",
-        "875J": "Vorsprache b. Behörden",
-        "8710": "Weiterbildungsurlaub",
-        "876E": "Wohnungssuche",
-        "875I": "Wohnungswechsel"
-    }
-    df["Abwesenheitsart"] = df["Abwesenheitsart"].fillna("").str.strip()
-    df["Abwesenheitsart"] = df["Abwesenheitsart"].map(lambda x: abwesenheitsart_mapping.get(x, x))
-    
-    # Kategorisierung:
-    # - ICT: wenn die Kontierungsbeschreibung mit "PP-UHR ICT" beginnt
-    #        oder wenn die Kontierungsnummer (als Auftragsnummer) in der folgenden Liste enthalten ist.
+    # Definition der ICT-Auftragsnummern für die Kategorisierung
     ict_order_numbers = {
         "170232862", "170232863", "170232864", "170232865", "170232866",
         "170232867", "170232869", "170233584", "170423823", "170423824",
         "170423825", "170423826", "170423827", "170423828", "170423829",
         "170424380", "170424465", "170424663"
     }
+    
+    # Kategorisierung der Einträge
     df["Kategorie"] = df.apply(
         lambda row: "ICT" if str(row["Kontierungsbeschreibung"]).startswith("PP-UHR ICT") or str(row["Kontierungsnummer"]) in ict_order_numbers else (
             "FLBW" if "FLBW" in str(row["Kontierungsbeschreibung"]) else (
@@ -160,11 +91,18 @@ def transform_data(file_buffer):
         axis=1
     )
     
-    # Ableitung der Unterkategorie:
-    # - ICT: 8-stellige Zahl aus der Kontierungsnummer
-    # - FLBW: Schlüsselwort aus dem "Leistung Kurztext" (nur am Anfang geprüft)
-    # - PSP: 7-stellige Zahl aus der Kontierungsnummer
+    # Hilfsfunktionen für die Unterkategorie-Ableitung
     def extract_number(text, num_digits=7):
+        """
+        Extrahiert eine Zahl mit der angegebenen Stellenzahl aus einem Text.
+        
+        Args:
+            text: Der zu analysierende Text
+            num_digits: Die gewünschte Stellenzahl (Standard: 7)
+            
+        Returns:
+            str: Die extrahierte Zahl oder "Unbekannte Kontierungsnummer"
+        """
         matches = re.findall(r"\d+", str(text))
         for m in matches:
             if len(m) == num_digits:
@@ -174,6 +112,15 @@ def transform_data(file_buffer):
         return "Unbekannte Kontierungsnummer"
     
     def find_keyword(text):
+        """
+        Sucht nach definierten Schlüsselwörtern am Anfang des Textes.
+        
+        Args:
+            text: Der zu analysierende Text
+            
+        Returns:
+            str: Das gefundene Schlüsselwort oder "XXX"
+        """
         possible_keywords = [
             "ABW", "ÄAUF", "EINK", "INNO", "IHE", "MFK", "MDBI", "MON", "NORM", 
             "OBS", "RCM", "REST", "SICH", "STADA", "STUD", "SUE", "SYM", "PSUP",
@@ -185,6 +132,7 @@ def transform_data(file_buffer):
                 return keyword
         return "XXX"
     
+    # Unterkategorie-Ableitung basierend auf der Kategorie
     df["Unterkategorie"] = df.apply(
         lambda row: (
             extract_number(row["Kontierungsnummer"], num_digits=8) if row["Kategorie"] == "ICT" else (
@@ -196,12 +144,31 @@ def transform_data(file_buffer):
         axis=1
     )
     
+    # Erstellung des Unterkategorie-Namens
     df["Unterkategorie Name"] = df.apply(
         lambda row: row["Unterkategorie"] + " " + row["Projektdefinition"] if row["Kategorie"] == "PSP" else row["Unterkategorie"],
         axis=1
     )
-    df
-    # Definiere die statischen Spalten, die als Index in der Pivotierung genutzt werden sollen
+    
+    # Status-Erkennung basierend auf Lohnart und AnAbArt
+    def status_logik(row):
+        """
+        Bestimmt den Status eines Eintrags basierend auf Lohnart und AnAbArt.
+        
+        Args:
+            row: Die zu analysierende Zeile
+            
+        Returns:
+            str: Der ermittelte Status (Arbeit Unproduktiv, Arbeit oder Abwesend)
+        """
+        if pd.notna(row["Lohnart-Langtext"]) and str(row["Lohnart-Langtext"]).strip() != "":
+            return "Arbeit Unproduktiv"
+        if re.fullmatch(r"2\d{3}", str(row["Text AnAbArt"]).strip()):
+            return "Arbeit"
+        return "Abwesend"
+    df["Status"] = df.apply(status_logik, axis=1)
+    
+    # Definition der statischen Spalten für die Pivotierung
     static_cols = [
         "Organisationseinheit", "U-Nummer", "Name", "Kontierungsbeschreibung",
         "Kontierungstyp", "Kontierungsnummer", "Leistung Kurztext", "Leistungsart",
@@ -209,27 +176,20 @@ def transform_data(file_buffer):
         "Text AnAbArt", "Abwesenheitsart", "Kategorie", "Unterkategorie", "Unterkategorie Name"
     ] 
     
-    static_cols2 = [
-        "Organisationseinheit", "U-Nummer", "Name", "Kontierungsbeschreibung",
-        "Kontierungstyp", "Kontierungsnummer", "Leistung Kurztext", "Leistungsart",
-        "EmpfKostenstelle", "Projektdefinition", "Lohnart-Langtext",
-        "Text AnAbArt", "Abwesenheitsart", "Kategorie", "Unterkategorie", "Unterkategorie Name"
-    ]
-    
-    # Fehlende Werte in Gruppierungsspalten ersetzen
-    for col in static_cols2:
+    # Ersetzung fehlender Werte in den Gruppierungsspalten
+    for col in static_cols:
         df[col] = df[col].fillna("Unbekannt")
     
-    # Pivotierung: Aggregiere den Betrag pro Gruppe (definiert durch die statischen Felder) und Monat
+    # Pivotierung der Daten
     pivot_df = df.pivot_table(
-        index=static_cols2,
+        index=static_cols,
         columns="Monat",
         values="Betrag",
         aggfunc="sum",
         fill_value=0
     ).reset_index()
 
-    # Optional: Mapping von Monatsnummern zu Monatsnamen
+    # Monatsnamen-Mapping
     month_names = {
         1: "Januar", 2: "Februar", 3: "März", 4: "April",
         5: "Mai", 6: "Juni", 7: "Juli", 8: "August",
@@ -237,20 +197,16 @@ def transform_data(file_buffer):
     }
     pivot_df.rename(columns=month_names, inplace=True)
     
-    # Ermittele, welche Monats-Spalten tatsächlich vorhanden sind
+    # Ermittlung der vorhandenen Monatsspalten
     existing_months = [month_names[m] for m in month_names if month_names[m] in pivot_df.columns]
     
-    # Sortiere die Spalten: zuerst die statischen Spalten, dann die Monats-Spalten in chronologischer Reihenfolge
+    # Sortierung der Spalten
     pivot_df = pivot_df[static_cols + sorted(existing_months, key=lambda m: list(month_names.values()).index(m))]
     
-    # Berechne die "ytd" (Year-to-Date)-Summe über alle vorhandenen Monats-Spalten
+    # Berechnung der Year-to-Date Summe
     pivot_df["ytd"] = pivot_df[existing_months].sum(axis=1)
 
     return pivot_df
-
-
-
-
 
 # Streamlit-Oberfläche
 st.title('📈 FLBW Daten Transformation (Neue SAP-Struktur)')
