@@ -220,15 +220,6 @@ def transform_data(file_buffer):
     for col in static_cols2:
         df[col] = df[col].fillna("Unbekannt")
     
-    st.write("Vor Pivotierung: Anzahl Zeilen:", len(df))
-    st.write("Spaltennamen:", df.columns.tolist())
-    st.write("Beispiel-Daten (erste 5 Zeilen):")
-    st.write(df.head())
-    st.write("Anzahl Nullwerte pro Spalte:")
-    st.write(df.isnull().sum())
-    st.write("Eindeutige Werte in 'Monat':", df["Monat"].unique())
-    st.write("Eindeutige Werte in 'Betrag':", df["Betrag"].unique())
-    
     # Pivotierung: Aggregiere den Betrag pro Gruppe (definiert durch die statischen Felder) und Monat
     pivot_df = df.pivot_table(
         index=static_cols2,
@@ -237,11 +228,6 @@ def transform_data(file_buffer):
         aggfunc="sum",
         fill_value=0
     ).reset_index()
-
-    st.text("pivot_df")
-
-    pivot_df
-
 
     # Optional: Mapping von Monatsnummern zu Monatsnamen
     month_names = {
@@ -259,10 +245,6 @@ def transform_data(file_buffer):
     
     # Berechne die "ytd" (Year-to-Date)-Summe über alle vorhandenen Monats-Spalten
     pivot_df["ytd"] = pivot_df[existing_months].sum(axis=1)
-
-    st.text("pivot_df 2")
-
-    pivot_df
 
     return pivot_df
 
@@ -329,4 +311,3 @@ if uploaded_file:
 
     st.header("Transformierte Daten")
     st.dataframe(transformed_df)
-    
