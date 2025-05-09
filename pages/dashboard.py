@@ -220,6 +220,87 @@ def show_arbeitszeiten():
         )
         st.altair_chart(bar & scatter, use_container_width=True)
 
+
+    with tabs.insert(0, "Advanced Insights"):
+        st.subheader("Korrelations-Heatmap der Monatsstunden")
+        # 1) Korrelationsmatrix erstellen
+        df_monthly = dff[monate]
+        corr = df_monthly.corr()
+
+        # 2) In „long form“ für Altair transformieren
+        corr_long = (
+            corr.reset_index()
+                .melt(id_vars="index", var_name="Monat2", value_name="Corr")
+                .rename(columns={"index":"Monat1"})
+        )
+
+        # 3) Altair-Heatmap mit Slider-Filter
+        threshold = st.slider("Minimaler Korrelations-Schwellenwert", 0.0, 1.0, 0.5, 0.05)
+        heat_corr = (
+            alt.Chart(corr_long.query("abs(Corr) >= @threshold"))
+            .mark_rect()
+            .encode(
+                x=alt.X("Monat1:N", sort=monate),
+                y=alt.Y("Monat2:N", sort=monate),
+                color=alt.Color("Corr:Q", scale=alt.Scale(scheme="redblue", domain=[-1,1])),
+                tooltip=["Monat1","Monat2","Corr"]
+            )
+            .properties(height=400, width=400)
+        )
+        st.altair_chart(heat_corr, use_container_width=False)
+
+        st.markdown("---")
+        st.subheader("Sunburst: Kategorie → Unterkategorie → EmpfKostenstelle")
+        # 1) Hierarchische Aggregation
+        sun_df = (
+            dff.groupby(["Kategorie","Unterkategorie","EmpfKostenstelle"])["ytd"]
+            .sum().reset_index()
+        )
+        # 2) Plotly Sunburst
+        import plotly.express as px
+        fig = px.sunburst(
+            sun_df,
+            path=["Kategorie","Unterkategorie","EmpfKostenstelle"],
+            values="ytd",
+            title="Stundenverteilung hierarchisch"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("Forecast der nächsten 3 Monate (exponentielles Glätten)")
+        # 1) Einfaches ETS-Forecasting mit statsmodels (falls installiert)
+        try:
+            from statsmodels.tsa.holtwinters import ExponentialSmoothing
+            ts = df_monthly.sum().rename_axis("Monat").reset_index(name="Stunden")
+            # Monate als Datumsindex (1. des Monats)
+            ts["Datum"] = pd.to_datetime("2025-" + ts["Monat"].map({
+                m:i+1 for i,m in enumerate(monate)
+            }).astype(str) + "-01")
+            ts = ts.set_index("Datum")["Stunden"]
+            model = ExponentialSmoothing(ts, trend="add", seasonal="add", seasonal_periods=12).fit()
+            fc = model.forecast(3)
+            fc_df = fc.rename("Forecast").reset_index()
+            fc_df["Monat"] = fc_df["index"].dt.strftime("%B")
+            # 2) Kombi-Chart original + Forecast
+            base = alt.Chart(ts.reset_index()).encode(
+                x=alt.X("index:T", title="Datum"),
+                y=alt.Y("Stunden:Q")
+            )
+            orig = base.mark_line(color="steelblue").encode(tooltip=["index","Stunden"])
+            fut = alt.Chart(fc_df).mark_line(strokeDash=[5,5], color="orange").encode(
+                x="index:T",
+                y="Forecast:Q",
+                tooltip=["Monat","Forecast"]
+            )
+            st.altair_chart((orig + fut).interactive(), use_container_width=True)
+        except ImportError:
+            st.warning("Für den Forecast benötigst du `statsmodels`. Installiere es mit `pip install statsmodels`.")
+
+        st.markdown("---")
+        st.subheader("Interaktive Tabellen-Analyse")
+        st.info("Klicke auf Spaltenüberschriften, um zu sortieren oder nach Werten zu filtern.")
+        st.dataframe(dff, use_container_width=True)
+
     # --- 5) Rohdaten & Download
     with st.expander("Rohdaten anzeigen"):
         st.dataframe(dff, use_container_width=True)
