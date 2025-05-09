@@ -216,6 +216,15 @@ def transform_data(file_buffer):
         "Text AnAbArt", "Abwesenheitsart", "Kategorie", "Unterkategorie", "Unterkategorie Name"
     ]
     
+    st.write("Vor Pivotierung: Anzahl Zeilen:", len(df))
+    st.write("Spaltennamen:", df.columns.tolist())
+    st.write("Beispiel-Daten (erste 5 Zeilen):")
+    st.write(df.head())
+    st.write("Anzahl Nullwerte pro Spalte:")
+    st.write(df.isnull().sum())
+    st.write("Eindeutige Werte in 'Monat':", df["Monat"].unique())
+    st.write("Eindeutige Werte in 'Betrag':", df["Betrag"].unique())
+    
     # Pivotierung: Aggregiere den Betrag pro Gruppe (definiert durch die statischen Felder) und Monat
     pivot_df = df.pivot_table(
         index=static_cols2,
@@ -316,3 +325,4 @@ if uploaded_file:
 
     st.header("Transformierte Daten")
     st.dataframe(transformed_df)
+    
