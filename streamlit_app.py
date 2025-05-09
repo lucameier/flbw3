@@ -181,6 +181,9 @@ def transform_data(file_buffer):
     for col in static_cols:
         df[col] = df[col].fillna("Unbekannt")
     
+    # Konvertierung der EmpfKostenstelle zu String
+    df["EmpfKostenstelle"] = df["EmpfKostenstelle"].fillna("").astype(str)
+    
     # Pivotierung der Daten
     pivot_df = df.pivot_table(
         index=static_cols,
@@ -230,34 +233,41 @@ with st.expander("Erklärung"):
        - EmpfKostenstelle → EmpfKostenstelle
        - Empfänger-PSP-Element → Projektdefinition
        - Anzahl (Maßeinheit) → Betrag
+       - Text AnAbArt → Text AnAbArt (wird später zum Status)
     
     2. **Datumsverarbeitung:**  
        - Konvertierung des Datums in das Format DD.MM.YYYY
        - Extraktion des Monats als numerischer Wert (1-12)
     
-    3. **Abwesenheitsart-Mapping:**  
-       Standardisierung der Abwesenheitsarten auf einheitliche Codes (z.B. "Ferien" → "100", "Krankheit" → "200")
-    
-    4. **Kategorisierung:**  
+    3. **Kategorisierung:**  
        Einträge werden in folgende Kategorien eingeteilt:
        - **ICT:** Wenn die Kontierungsbeschreibung mit "PP-UHR ICT" beginnt ODER die Kontierungsnummer in der Liste der ICT-Auftragsnummern enthalten ist
        - **FLBW:** Wenn "FLBW" in der Kontierungsbeschreibung vorkommt
        - **PSP:** Wenn "PSP" im Kontierungstyp enthalten ist
        - **Anderes:** Für alle übrigen Fälle
     
-    5. **Unterkategorie-Ableitung:**  
+    4. **Unterkategorie-Ableitung:**  
        Je nach Kategorie wird die Unterkategorie wie folgt bestimmt:
        - **ICT:** Extraktion einer 8-stelligen Zahl aus der Kontierungsnummer
        - **FLBW:** Prüfung des Leistung Kurztext auf definierte Schlüsselwörter (z.B. "ABW", "ÄAUF", "EINK", etc.)
        - **PSP:** Extraktion einer 7-stelligen Zahl aus der Kontierungsnummer
        - Für PSP-Einträge wird der Unterkategorie Name als Kombination aus Unterkategorie und Projektdefinition erstellt
     
-    6. **Datenaggregation:**  
+    5. **Status-Ableitung:**  
+       - Die Spalte "Text AnAbArt" wird durch die Status-Logik ersetzt:
+         - "Arbeit Unproduktiv" falls Lohnart-Langtext nicht leer ist
+         - "Arbeit" falls Text AnAbArt ein vierstelliger Code mit 2 am Anfang ist (z.B. 2001)
+         - "Abwesend" in allen anderen Fällen
+    
+    6. **Datentypen-Bereinigung:**  
+       - Die Spalte "EmpfKostenstelle" wird explizit als String behandelt, um Kompatibilitätsprobleme zu vermeiden
+    
+    7. **Datenaggregation:**  
        - Gruppierung nach allen statischen Feldern (Organisationseinheit, U-Nummer, Name, etc.)
        - Aggregation der Beträge pro Monat
        - Berechnung der Year-to-Date (ytd) Summe über alle Monate
     
-    7. **Ausgabeformat:**  
+    8. **Ausgabeformat:**  
        - Erstellung einer pivotierten Tabelle mit Monatsspalten
        - Umwandlung der Monatsnummern in Monatsnamen (z.B. 1 → Januar)
        - Sortierung der Spalten: zuerst statische Felder, dann Monate chronologisch
