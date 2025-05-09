@@ -257,38 +257,55 @@ st.title('📈 FLBW Daten Transformation (Neue SAP-Struktur)')
 
 with st.expander("Erklärung"):
     st.markdown("""
-    Diese Web-Anwendung transformiert FLBW-Daten aus dem neuen SAP-Exportformat.
+    Diese Web-Anwendung transformiert FLBW-Daten aus dem neuen SAP-Exportformat in ein standardisiertes Analyseformat.
     
-    **Schritte der Transformation:**
+    **Detaillierte Transformationsschritte:**
     
     1. **Spaltenumbenennung:**  
-       Die Originalspalten werden in standardisierte Namen überführt.
+       Die Originalspalten werden gemäß folgendem Mapping umbenannt:
+       - OE → Organisationseinheit
+       - Personalnummer → U-Nummer
+       - Name des Mitarbeiters bzw. Bewerbers → Name
+       - Kontierungstext → Kontierungsbeschreibung
+       - Kontierung (Empf.) → Kontierungstyp
+       - Allgemeiner Empfänger → Kontierungsnummer
+       - Kurztext → Leistung Kurztext
+       - EmpfKostenstelle → EmpfKostenstelle
+       - Empfänger-PSP-Element → Projektdefinition
+       - Anzahl (Maßeinheit) → Betrag
     
-    2. **Datumskonvertierung und Monatsextraktion:**  
-       Das Datum wird in ein Datetime-Format umgewandelt und der entsprechende Monat (als Zahl) ermittelt.
+    2. **Datumsverarbeitung:**  
+       - Konvertierung des Datums in das Format DD.MM.YYYY
+       - Extraktion des Monats als numerischer Wert (1-12)
     
-    3. **Mapping für Abwesenheitsart:**  
-       Uneinheitliche Werte in der Spalte *Abwesenheitsart* werden mithilfe eines Mappings vereinheitlicht.
+    3. **Abwesenheitsart-Mapping:**  
+       Standardisierung der Abwesenheitsarten auf einheitliche Codes (z.B. "Ferien" → "100", "Krankheit" → "200")
     
     4. **Kategorisierung:**  
-       - **ICT:** Falls die Kontierungsbeschreibung mit *"PP-UHR ICT"* beginnt oder die Kontierungsnummer (Auftragsnummer) in einer definierten Liste enthalten ist.  
-       - **FLBW:** Falls *"FLBW"* in der Kontierungsbeschreibung vorkommt.  
-       - **PSP:** Falls im Kontierungstyp das Kürzel *"PSP"* erscheint.  
-       - **Anderes:** Alle übrigen Fälle.
+       Einträge werden in folgende Kategorien eingeteilt:
+       - **ICT:** Wenn die Kontierungsbeschreibung mit "PP-UHR ICT" beginnt ODER die Kontierungsnummer in der Liste der ICT-Auftragsnummern enthalten ist
+       - **FLBW:** Wenn "FLBW" in der Kontierungsbeschreibung vorkommt
+       - **PSP:** Wenn "PSP" im Kontierungstyp enthalten ist
+       - **Anderes:** Für alle übrigen Fälle
     
-    5. **Ableitung der Unterkategorie:**  
-       - **ICT:** Es wird eine 8-stellige Zahl aus der Kontierungsnummer extrahiert.  
-       - **FLBW:** Es wird ein Schlüsselwort aus dem *Leistung Kurztext* ermittelt, wobei nur geprüft wird, ob der Text **am Anfang** mit einem der Keywords beginnt.  
-       - **PSP:** Es wird eine 7-stellige Zahl aus der Kontierungsnummer extrahiert.  
-       Für PSP-Einträge wird der *Unterkategorie Name* als Kombination aus Unterkategorie und Projektdefinition definiert.
+    5. **Unterkategorie-Ableitung:**  
+       Je nach Kategorie wird die Unterkategorie wie folgt bestimmt:
+       - **ICT:** Extraktion einer 8-stelligen Zahl aus der Kontierungsnummer
+       - **FLBW:** Prüfung des Leistung Kurztext auf definierte Schlüsselwörter (z.B. "ABW", "ÄAUF", "EINK", etc.)
+       - **PSP:** Extraktion einer 7-stelligen Zahl aus der Kontierungsnummer
+       - Für PSP-Einträge wird der Unterkategorie Name als Kombination aus Unterkategorie und Projektdefinition erstellt
     
-    6. **Pivotierung:**  
-       Die Beträge (Spalte *Betrag*) werden je Gruppe (definiert durch die statischen Felder) und Monat aggregiert – es entstehen Spalten für jeden Monat.
+    6. **Datenaggregation:**  
+       - Gruppierung nach allen statischen Feldern (Organisationseinheit, U-Nummer, Name, etc.)
+       - Aggregation der Beträge pro Monat
+       - Berechnung der Year-to-Date (ytd) Summe über alle Monate
     
-    7. **Berechnung ytd:**  
-       Abschließend wird für jeden Datensatz der Gesamtbetrag über alle Monate (ytd) berechnet.
+    7. **Ausgabeformat:**  
+       - Erstellung einer pivotierten Tabelle mit Monatsspalten
+       - Umwandlung der Monatsnummern in Monatsnamen (z.B. 1 → Januar)
+       - Sortierung der Spalten: zuerst statische Felder, dann Monate chronologisch
     
-    Laden Sie einfach die Excel-Datei hoch, um die Transformation zu starten.
+    **Hinweis:** Die Transformation berücksichtigt fehlende Werte und ersetzt diese durch "Unbekannt" in den Gruppierungsspalten.
     """)
 
 uploaded_file = st.file_uploader("Bitte wählen Sie die Excel-Datei aus", type=["xlsx", "xls"])
