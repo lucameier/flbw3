@@ -212,7 +212,8 @@ def transform_data(file_buffer):
     static_cols2 = [
         "Organisationseinheit", "U-Nummer", "Name", "Kontierungsbeschreibung",
         "Kontierungstyp", "Kontierungsnummer", "Leistung Kurztext", "Leistungsart",
-        "Kategorie", "Unterkategorie", "Unterkategorie Name"
+        "EmpfKostenstelle", "Projektdefinition", "Lohnart-Langtext",
+        "Text AnAbArt", "Abwesenheitsart", "Kategorie", "Unterkategorie", "Unterkategorie Name"
     ]
     
     # Pivotierung: Aggregiere den Betrag pro Gruppe (definiert durch die statischen Felder) und Monat
