@@ -1,6 +1,9 @@
+# pages/2_Arbeitszeiten.py
+
 import pandas as pd
 import streamlit as st
 import altair as alt
+import plotly.express as px
 
 def show_arbeitszeiten():
     st.header("FLBW Arbeitszeiten Dashboard (Erweitert)")
@@ -18,17 +21,19 @@ def show_arbeitszeiten():
         opts = sorted(df[col].dropna().unique())
         return st.sidebar.multiselect(label, opts, default=opts)
     sel = {
-        "OE":       ms_filter("Organisationseinheit", "Organisationseinheit"),
-        "KT":       ms_filter("Kontierungstyp", "Kontierungstyp"),
-        "LA":       ms_filter("Leistungsart", "Leistungsart"),
-        "Kat":      ms_filter("Kategorie", "Kategorie"),
-        "EKSt":     ms_filter("EmpfKostenstelle", "EmpfKostenstelle")
+        "OE":   ms_filter("Organisationseinheit", "Organisationseinheit"),
+        "KT":   ms_filter("Kontierungstyp",        "Kontierungstyp"),
+        "LA":   ms_filter("Leistungsart",          "Leistungsart"),
+        "Kat":  ms_filter("Kategorie",             "Kategorie"),
+        "UKat": ms_filter("Unterkategorie",        "Unterkategorie"),
+        "EKSt": ms_filter("EmpfKostenstelle",      "EmpfKostenstelle")
     }
     mask = (
         df["Organisationseinheit"].isin(sel["OE"]) &
         df["Kontierungstyp"].isin(sel["KT"]) &
         df["Leistungsart"].isin(sel["LA"]) &
         df["Kategorie"].isin(sel["Kat"]) &
+        df["Unterkategorie"].isin(sel["UKat"]) &
         df["EmpfKostenstelle"].isin(sel["EKSt"])
     )
     dff = df[mask].copy()
@@ -39,53 +44,118 @@ def show_arbeitszeiten():
     # --- 3) Monatsspalten & Basis-KPIs
     monate = ["Januar","Februar","März","April","Mai","Juni",
               "Juli","August","September","Oktober","November","Dezember"]
-    # Summen und Kennzahlen
+
     total_ytd       = dff["ytd"].sum()
-    median_ytd_ma   = dff.groupby("U-Nummer")["ytd"].sum().median()
-    std_ytd_ma      = dff.groupby("U-Nummer")["ytd"].sum().std()
-    cv_ytd_ma       = std_ytd_ma / median_ytd_ma if median_ytd_ma else 0
+    emp_ytd         = dff.groupby("U-Nummer")["ytd"].sum().reset_index()
+    median_ytd_ma   = emp_ytd["ytd"].median()
+    std_ytd_ma      = emp_ytd["ytd"].std()
+    cv_ytd_ma       = (std_ytd_ma / median_ytd_ma) if median_ytd_ma else 0
     avg_per_month   = dff[monate].sum(axis=1).mean()
     peak_month      = dff[monate].sum().idxmax()
     low_month       = dff[monate].sum().idxmin()
-    emp_count       = dff["U-Nummer"].nunique()
+    emp_count       = emp_ytd["U-Nummer"].nunique()
     proj_count      = dff["Projektdefinition"].nunique()
-
-    # KPI-Übersicht
-    cols = st.columns(6)
-    cols[0].metric("Gesamt YTD-Stunden",       f"{total_ytd:,.0f}")
-    cols[1].metric("Median YTD/Stunde pro MA", f"{median_ytd_ma:,.1f}")
-    cols[2].metric("StdDev YTD/Stunde MA",     f"{std_ytd_ma:,.1f}")
-    cols[3].metric("CV YTD/Stunde MA",         f"{cv_ytd_ma:.2%}")
-    cols[4].metric("Ø Monatsstunden",          f"{avg_per_month:,.1f}")
-    cols[5].metric("Mitarbeitende",            f"{emp_count}")
-
-    # Zusätzliche KPIs
-    cols2 = st.columns(5)
-    cols2[0].metric("Projekte gesamt",         proj_count)
-    cols2[1].metric("Stärkster Monat",         peak_month)
-    cols2[2].metric("Schwächster Monat",       low_month)
-    # Berechnung Überstunden (z.B. >160h/Monat)
-    overtime = dff[monate].applymap(lambda x: max(x-160,0)).sum().sum()
-    cols2[3].metric("Total Überstunden",       f"{overtime:,.0f}")
-    # Anteil Leistungsart "Operation" (Beispiel)
+    # Total Überstunden (>160h/Monat)
+    overtime        = dff[monate].sub(160).clip(lower=0).sum().sum()
+    # Beispiel: Anteil Leistungsart "Operation"
     if "Operation" in dff["Leistungsart"].unique():
         op_share = dff.query("Leistungsart=='Operation'")["ytd"].sum() / total_ytd
-        cols2[4].metric("Operation-Anteil",      f"{op_share:.1%}")
     else:
-        cols2[4].metric("Operation-Anteil",      "n/a")
+        op_share = None
 
-    # --- 4) Tabs mit Grafiken
-    tabs = st.tabs([
-        "Trend & Wachstum", 
-        "Verteilung & Boxplot", 
-        "Kostenstellen & Kategorien", 
+    # KPI-Übersicht
+    cols1 = st.columns(6)
+    cols1[0].metric("Gesamt YTD-Stunden",       f"{total_ytd:,.0f}")
+    cols1[1].metric("Median YTD/Stunde pro MA", f"{median_ytd_ma:,.1f}")
+    cols1[2].metric("StdDev YTD/Stunde MA",     f"{std_ytd_ma:,.1f}")
+    cols1[3].metric("CV YTD/Stunde MA",         f"{cv_ytd_ma:.2%}")
+    cols1[4].metric("Ø Monatsstunden",          f"{avg_per_month:,.1f}")
+    cols1[5].metric("Mitarbeitende",            f"{emp_count}")
+
+    cols2 = st.columns(5)
+    cols2[0].metric("Projekte gesamt",         f"{proj_count}")
+    cols2[1].metric("Stärkster Monat",         peak_month)
+    cols2[2].metric("Schwächster Monat",       low_month)
+    cols2[3].metric("Total Überstunden",       f"{overtime:,.0f}")
+    cols2[4].metric("Operation-Anteil",        f"{op_share:.1%}" if op_share is not None else "n/a")
+
+    # --- 4) Tabs für Visualisierungen
+    tab_labels = [
+        "Advanced Insights",
+        "Trend & Wachstum",
+        "Verteilung & Boxplot",
+        "Kostenstellen & Kategorien",
         "Projekt-Insights"
-    ])
+    ]
+    tabs = st.tabs(tab_labels)
 
-    # 4.1) Trend & Wachstum
+    # --- 4.1) Advanced Insights
     with tabs[0]:
+        st.subheader("Korrelations-Heatmap der Monatsstunden")
+        corr = dff[monate].corr().reset_index().melt(
+            id_vars="index", var_name="Monat2", value_name="Corr"
+        ).rename(columns={"index":"Monat1"})
+        thr = st.slider("Min. Korrelations-Schwelle", 0.0, 1.0, 0.5, 0.05)
+        heat = (
+            alt.Chart(corr.query("abs(Corr) >= @thr"))
+               .mark_rect()
+               .encode(
+                   x=alt.X("Monat1:N", sort=monate),
+                   y=alt.Y("Monat2:N", sort=monate),
+                   color=alt.Color("Corr:Q", scale=alt.Scale(scheme="redblue", domain=[-1,1])),
+                   tooltip=["Monat1","Monat2","Corr"]
+               )
+               .properties(height=400, width=400)
+        )
+        st.altair_chart(heat, use_container_width=False)
+
+        st.markdown("---")
+        st.subheader("Sunburst: Kategorie → Unterkategorie → EmpfKostenstelle")
+        sun_df = (
+            dff.groupby(["Kategorie","Unterkategorie","EmpfKostenstelle"])["ytd"]
+               .sum().reset_index()
+        )
+        fig_sb = px.sunburst(
+            sun_df,
+            path=["Kategorie","Unterkategorie","EmpfKostenstelle"],
+            values="ytd",
+            title="Stundenverteilung hierarchisch"
+        )
+        st.plotly_chart(fig_sb, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("Forecast der nächsten 3 Monate (ETS)")
+        try:
+            from statsmodels.tsa.holtwinters import ExponentialSmoothing
+            ts = dff[monate].sum().rename_axis("Monat").reset_index(name="Stunden")
+            ts["Datum"] = pd.to_datetime("2025-" + ts["Monat"].map({
+                m: i+1 for i, m in enumerate(monate)
+            }).astype(str) + "-01")
+            ts = ts.set_index("Datum")["Stunden"]
+            model = ExponentialSmoothing(ts, trend="add", seasonal="add", seasonal_periods=12).fit()
+            fc = model.forecast(3).rename("Forecast").reset_index()
+            fc["Monat"] = fc["index"].dt.strftime("%B")
+
+            base = alt.Chart(ts.reset_index()).encode(
+                x=alt.X("index:T", title="Datum"),
+                y=alt.Y("Stunden:Q")
+            )
+            orig = base.mark_line().encode(tooltip=["index","Stunden"])
+            fut  = alt.Chart(fc).mark_line(strokeDash=[5,5], color="orange").encode(
+                x="index:T", y="Forecast:Q", tooltip=["Monat","Forecast"]
+            )
+            st.altair_chart((orig + fut).interactive(), use_container_width=True)
+        except ImportError:
+            st.warning("Für den Forecast benötigst du `statsmodels`. Installiere mit `pip install statsmodels`.")
+
+        st.markdown("---")
+        st.subheader("Interaktive Tabellen-Analyse")
+        st.info("Sortiere und filtere direkt in der Tabelle.")
+        st.dataframe(dff, use_container_width=True)
+
+    # --- 4.2) Trend & Wachstum
+    with tabs[1]:
         st.subheader("Monatlicher Verlauf & YoY-Wachstum")
-        # Monatsverlauf als Area Chart
         mon_sum = dff[monate].sum().reset_index()
         mon_sum.columns = ["Monat","Stunden"]
         area = (
@@ -112,10 +182,7 @@ def show_arbeitszeiten():
         )
         st.altair_chart((area + line_ma).interactive(), use_container_width=True)
 
-        # Monat-zu-Monat %-Wachstum
-        mon_growth = mon_sum.assign(
-            pct=lambda df_: df_["Stunden"].pct_change()*100
-        ).dropna()
+        mon_growth = mon_sum.assign(pct=lambda df_: df_["Stunden"].pct_change()*100).dropna()
         bar_growth = (
             alt.Chart(mon_growth)
                .mark_bar(color="orange")
@@ -127,11 +194,9 @@ def show_arbeitszeiten():
         )
         st.altair_chart(bar_growth.interactive(), use_container_width=True)
 
-    # 4.2) Verteilung & Boxplot
-    with tabs[1]:
+    # --- 4.3) Verteilung & Boxplot
+    with tabs[2]:
         st.subheader("Verteilung der YTD-Stunden pro Mitarbeitenden")
-        # Histogramm
-        emp_ytd = dff.groupby("U-Nummer")["ytd"].sum().reset_index()
         hist = (
             alt.Chart(emp_ytd)
                .mark_bar()
@@ -141,7 +206,6 @@ def show_arbeitszeiten():
                    tooltip=["count()"]
                )
         )
-        # Boxplot pro OE
         box = (
             alt.Chart(dff)
                .mark_boxplot(extent="min-max")
@@ -153,10 +217,9 @@ def show_arbeitszeiten():
         )
         st.altair_chart(hist & box, use_container_width=True)
 
-    # 4.3) Kostenstellen & Kategorien
-    with tabs[2]:
+    # --- 4.4) Kostenstellen & Kategorien
+    with tabs[3]:
         st.subheader("Stunden nach EmpfKostenstelle & Kategorie")
-        # Pie Chart Kategorie-Anteil
         cat_sum = dff.groupby("Kategorie")["ytd"].sum().reset_index()
         pie = (
             alt.Chart(cat_sum)
@@ -167,7 +230,6 @@ def show_arbeitszeiten():
                    tooltip=["Kategorie","ytd"]
                )
         )
-        # Stacked Bar Kostenstellen vs. Leistungsart
         cs_sum = (
             dff.groupby(["EmpfKostenstelle","Leistungsart"])["ytd"]
                .sum().reset_index()
@@ -184,8 +246,8 @@ def show_arbeitszeiten():
         )
         st.altair_chart(pie | stack, use_container_width=True)
 
-    # 4.4) Projekt-Insights
-    with tabs[3]:
+    # --- 4.5) Projekt-Insights
+    with tabs[4]:
         st.subheader("Top-Projekte & Scatter-Analyse")
         topn = st.slider("Anzahl Top Projekte", 5, 30, 10)
         proj_sum = (
@@ -202,10 +264,8 @@ def show_arbeitszeiten():
                    tooltip=["Projektdefinition","ytd"]
                )
         )
-        # Scatter: Ø Monatsstunden vs. YTD pro MA
         scatter_df = emp_ytd.merge(
-            dff[["U-Nummer"]+monate]
-               .groupby("U-Nummer").mean().reset_index(),
+            dff[["U-Nummer"]+monate].groupby("U-Nummer").mean().reset_index(),
             on="U-Nummer", suffixes=("_ytd","_avgm")
         )
         scatter = (
@@ -213,93 +273,12 @@ def show_arbeitszeiten():
                .mark_circle(size=50)
                .encode(
                    x=alt.X("ytd:Q", title="YTD-Stunden"),
-                   y=alt.Y("März:Q", title="Ø Monatsstunden (z.B. März)"),
+                   y=alt.Y("März:Q", title="Ø Monatsstunden (März)"),
                    tooltip=["U-Nummer","ytd","März"]
                )
                .interactive()
         )
         st.altair_chart(bar & scatter, use_container_width=True)
-
-
-    with tabs.insert(0, "Advanced Insights"):
-        st.subheader("Korrelations-Heatmap der Monatsstunden")
-        # 1) Korrelationsmatrix erstellen
-        df_monthly = dff[monate]
-        corr = df_monthly.corr()
-
-        # 2) In „long form“ für Altair transformieren
-        corr_long = (
-            corr.reset_index()
-                .melt(id_vars="index", var_name="Monat2", value_name="Corr")
-                .rename(columns={"index":"Monat1"})
-        )
-
-        # 3) Altair-Heatmap mit Slider-Filter
-        threshold = st.slider("Minimaler Korrelations-Schwellenwert", 0.0, 1.0, 0.5, 0.05)
-        heat_corr = (
-            alt.Chart(corr_long.query("abs(Corr) >= @threshold"))
-            .mark_rect()
-            .encode(
-                x=alt.X("Monat1:N", sort=monate),
-                y=alt.Y("Monat2:N", sort=monate),
-                color=alt.Color("Corr:Q", scale=alt.Scale(scheme="redblue", domain=[-1,1])),
-                tooltip=["Monat1","Monat2","Corr"]
-            )
-            .properties(height=400, width=400)
-        )
-        st.altair_chart(heat_corr, use_container_width=False)
-
-        st.markdown("---")
-        st.subheader("Sunburst: Kategorie → Unterkategorie → EmpfKostenstelle")
-        # 1) Hierarchische Aggregation
-        sun_df = (
-            dff.groupby(["Kategorie","Unterkategorie","EmpfKostenstelle"])["ytd"]
-            .sum().reset_index()
-        )
-        # 2) Plotly Sunburst
-        import plotly.express as px
-        fig = px.sunburst(
-            sun_df,
-            path=["Kategorie","Unterkategorie","EmpfKostenstelle"],
-            values="ytd",
-            title="Stundenverteilung hierarchisch"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown("---")
-        st.subheader("Forecast der nächsten 3 Monate (exponentielles Glätten)")
-        # 1) Einfaches ETS-Forecasting mit statsmodels (falls installiert)
-        try:
-            from statsmodels.tsa.holtwinters import ExponentialSmoothing
-            ts = df_monthly.sum().rename_axis("Monat").reset_index(name="Stunden")
-            # Monate als Datumsindex (1. des Monats)
-            ts["Datum"] = pd.to_datetime("2025-" + ts["Monat"].map({
-                m:i+1 for i,m in enumerate(monate)
-            }).astype(str) + "-01")
-            ts = ts.set_index("Datum")["Stunden"]
-            model = ExponentialSmoothing(ts, trend="add", seasonal="add", seasonal_periods=12).fit()
-            fc = model.forecast(3)
-            fc_df = fc.rename("Forecast").reset_index()
-            fc_df["Monat"] = fc_df["index"].dt.strftime("%B")
-            # 2) Kombi-Chart original + Forecast
-            base = alt.Chart(ts.reset_index()).encode(
-                x=alt.X("index:T", title="Datum"),
-                y=alt.Y("Stunden:Q")
-            )
-            orig = base.mark_line(color="steelblue").encode(tooltip=["index","Stunden"])
-            fut = alt.Chart(fc_df).mark_line(strokeDash=[5,5], color="orange").encode(
-                x="index:T",
-                y="Forecast:Q",
-                tooltip=["Monat","Forecast"]
-            )
-            st.altair_chart((orig + fut).interactive(), use_container_width=True)
-        except ImportError:
-            st.warning("Für den Forecast benötigst du `statsmodels`. Installiere es mit `pip install statsmodels`.")
-
-        st.markdown("---")
-        st.subheader("Interaktive Tabellen-Analyse")
-        st.info("Klicke auf Spaltenüberschriften, um zu sortieren oder nach Werten zu filtern.")
-        st.dataframe(dff, use_container_width=True)
 
     # --- 5) Rohdaten & Download
     with st.expander("Rohdaten anzeigen"):
@@ -308,4 +287,6 @@ def show_arbeitszeiten():
         st.download_button("Daten als CSV herunterladen", csv,
                            "arbeitszeiten_export.csv", "text/csv")
 
+
+# Funktion beim Seitenaufruf ausführen
 show_arbeitszeiten()
