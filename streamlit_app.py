@@ -166,7 +166,8 @@ def transform_data(file_buffer):
         if re.fullmatch(r"2\d{3}", str(row["Text AnAbArt"]).strip()):
             return "Arbeit"
         return "Abwesend"
-    df["Status"] = df.apply(status_logik, axis=1)
+    # Status direkt in die Spalte 'Text AnAbArt' schreiben
+    df["Text AnAbArt"] = df.apply(status_logik, axis=1)
     
     # Definition der statischen Spalten für die Pivotierung
     static_cols = [
@@ -269,15 +270,18 @@ uploaded_file = st.file_uploader("Bitte wählen Sie die Excel-Datei aus", type=[
 if uploaded_file:
     with st.spinner('Daten werden transformiert. Bitte warten...'):
         transformed_df = transform_data(uploaded_file)
+        # Excel-Datei im Speicher vorbereiten
+        buffer = io.BytesIO()
+        transformed_df.to_excel(buffer, index=False)
+        excel_data = buffer.getvalue()
+    
     st.success('Die Daten wurden erfolgreich transformiert.', icon="✅")
     st.balloons()
 
     # Excel-Download bereitstellen
-    buffer = io.BytesIO()
-    transformed_df.to_excel(buffer, index=False)
     st.download_button(
         label="Transformierte Daten herunterladen",
-        data=buffer,
+        data=excel_data,
         file_name="transformed_data.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
