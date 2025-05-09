@@ -224,6 +224,9 @@ def transform_data(file_buffer):
         aggfunc="sum",
         fill_value=0
     ).reset_index()
+    
+    pivot dt anzeigen
+
     pivot_df
 
 
@@ -243,8 +246,16 @@ def transform_data(file_buffer):
     
     # Berechne die "ytd" (Year-to-Date)-Summe über alle vorhandenen Monats-Spalten
     pivot_df["ytd"] = pivot_df[existing_months].sum(axis=1)
+
+    transformed pivot dt anzeigen
     
+    pivot_df
+
     return pivot_df
+
+
+
+
 
 # Streamlit-Oberfläche
 st.title('📈 FLBW Daten Transformation (Neue SAP-Struktur)')
