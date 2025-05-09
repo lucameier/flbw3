@@ -226,3 +226,5 @@ def show_arbeitszeiten():
         csv = dff.to_csv(index=False).encode("utf-8")
         st.download_button("Daten als CSV herunterladen", csv,
                            "arbeitszeiten_export.csv", "text/csv")
+
+show_arbeitszeiten()
