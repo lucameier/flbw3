@@ -224,8 +224,9 @@ def transform_data(file_buffer):
         aggfunc="sum",
         fill_value=0
     ).reset_index()
-    
-    st.text(pivot_df)
+    "
+
+    st.text("pivot_df")
 
     pivot_df
 
@@ -247,7 +248,7 @@ def transform_data(file_buffer):
     # Berechne die "ytd" (Year-to-Date)-Summe über alle vorhandenen Monats-Spalten
     pivot_df["ytd"] = pivot_df[existing_months].sum(axis=1)
 
-    st.text(pivot_df 2)
+    st.text("pivot_df 2")
 
     pivot_df
 
