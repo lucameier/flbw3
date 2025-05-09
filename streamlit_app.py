@@ -225,7 +225,7 @@ def transform_data(file_buffer):
         fill_value=0
     ).reset_index()
     
-    pivot dt anzeigen
+    st.text(pivot_df)
 
     pivot_df
 
@@ -247,8 +247,8 @@ def transform_data(file_buffer):
     # Berechne die "ytd" (Year-to-Date)-Summe über alle vorhandenen Monats-Spalten
     pivot_df["ytd"] = pivot_df[existing_months].sum(axis=1)
 
-    transformed pivot dt anzeigen
-    
+    st.text(pivot_df 2)
+
     pivot_df
 
     return pivot_df
