@@ -173,7 +173,7 @@ def transform_data(file_buffer):
         "Organisationseinheit", "U-Nummer", "Name", "Kontierungsbeschreibung",
         "Kontierungstyp", "Kontierungsnummer", "Leistung Kurztext", "Leistungsart",
         "EmpfKostenstelle", "Projektdefinition", "Lohnart-Langtext",
-        "Text AnAbArt", "Abwesenheitsart", "Kategorie", "Unterkategorie", "Unterkategorie Name"
+        "Text AnAbArt", "Kategorie", "Unterkategorie", "Unterkategorie Name"
     ] 
     
     # Ersetzung fehlender Werte in den Gruppierungsspalten
