@@ -18,10 +18,14 @@ def load_data(path: str):
     df_melt['Monat'] = pd.Categorical(df_melt['Monat'], categories=months, ordered=True)
     return df, df_melt
 
-# Path to your data file
-DATA_PATH = 'transformed_data (9).xlsx'
+# Datei-Upload
+uploaded = st.file_uploader("Bitte Excel-Datei hochladen", type=["xlsx"])
+if not uploaded:
+    st.info("Lade hier deine `transformed_data`-Datei hoch, um das Dashboard zu starten.")
+    st.stop()
 
-df, df_melt = load_data(DATA_PATH)
+# Daten laden
+df, df_melt = load_data(uploaded)
 
 # Sidebar filters
 st.sidebar.header("Filter")
