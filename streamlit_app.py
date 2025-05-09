@@ -216,6 +216,10 @@ def transform_data(file_buffer):
         "Text AnAbArt", "Abwesenheitsart", "Kategorie", "Unterkategorie", "Unterkategorie Name"
     ]
     
+    # Fehlende Werte in Gruppierungsspalten ersetzen
+    for col in static_cols2:
+        df[col] = df[col].fillna("Unbekannt")
+    
     st.write("Vor Pivotierung: Anzahl Zeilen:", len(df))
     st.write("Spaltennamen:", df.columns.tolist())
     st.write("Beispiel-Daten (erste 5 Zeilen):")
