@@ -122,13 +122,18 @@ def transform_data(file_buffer):
     # Abwesenheits-Codes (alle Codes mit anwesend_flag = 0)
     abwesenheits_codes = {code: name for code, (name, flag) in abwesenheitsarten.items() if flag == 0}
     
+    # Definition der Leistungsarten für Arbeitszeit/Abwesenheit-Kategorisierung
+    arbeitszeit_leistungsarten = {
+        "LA1624", "LA1620", "LA1611", "LA1402", "LA1619", "LA1617", "LA1002", "LA1615", "LA1824", "LA1825"
+    }
+    
     # Kategorisierung der Einträge
     df["Kategorie"] = df.apply(
         lambda row: "ICT" if str(row["Kontierungsbeschreibung"]).startswith("PP-UHR ICT") or str(row["Kontierungsnummer"]) in ict_order_numbers else (
             "FLBW" if "FLBW" in str(row["Kontierungsbeschreibung"]) or str(row["Kontierungsnummer"]) in flbw_order_numbers else (
                 "PSP" if "PSP" in str(row["Kontierungstyp"]) else (
-                    "Arbeitszeit" if str(row["Leistungsart"]) == "LA1624" and str(row["Text AnAbArt"]) in arbeitszeit_codes else (
-                        "Abwesenheit" if str(row["Leistungsart"]) == "LA1624" and str(row["Text AnAbArt"]) in abwesenheits_codes else "Anderes"
+                    "Arbeitszeit" if str(row["Leistungsart"]) in arbeitszeit_leistungsarten and str(row["Text AnAbArt"]) in arbeitszeit_codes else (
+                        "Abwesenheit" if str(row["Leistungsart"]) in arbeitszeit_leistungsarten and str(row["Text AnAbArt"]) in abwesenheits_codes else "Anderes"
                     )
                 )
             )
