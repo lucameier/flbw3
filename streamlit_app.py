@@ -78,13 +78,19 @@ def transform_data(file_buffer):
         "170232862", "170232863", "170232864", "170232865", "170232866",
         "170232867", "170232869", "170233584", "170423823", "170423824",
         "170423825", "170423826", "170423827", "170423828", "170423829",
-        "170424380", "170424465", "170424663"
+        "170424380", "170424465", "170424663", "170322127"
+    }
+    
+    # Definition der FLBW-Auftragsnummern für die Kategorisierung
+    flbw_order_numbers = {
+        "170320380", "170320381", "170320382", "170320373", "170319824",
+        "152319457", "152318870", "170223872", "170319986", "170424330", "170320783"
     }
     
     # Kategorisierung der Einträge
     df["Kategorie"] = df.apply(
         lambda row: "ICT" if str(row["Kontierungsbeschreibung"]).startswith("PP-UHR ICT") or str(row["Kontierungsnummer"]) in ict_order_numbers else (
-            "FLBW" if "FLBW" in str(row["Kontierungsbeschreibung"]) else (
+            "FLBW" if "FLBW" in str(row["Kontierungsbeschreibung"]) or str(row["Kontierungsnummer"]) in flbw_order_numbers else (
                 "PSP" if "PSP" in str(row["Kontierungstyp"]) else "Anderes"
             )
         ),
