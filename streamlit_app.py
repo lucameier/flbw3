@@ -87,11 +87,50 @@ def transform_data(file_buffer):
         "152319457", "152318870", "170223872", "170319986", "170424330", "170320783"
     }
     
+    # Definition der Abwesenheitsarten für die Kategorisierung
+    # Format: {code: (beschreibung, anwesend_flag)}
+    abwesenheitsarten = {
+        "0100": ("Ferien", 1), "0110": ("Treueprämie (Zeit)", 1), "0120": ("Flexa-Urlaub", 1), "0130": ("Vorruhestandurlaub", 1),
+        "0200": ("Krankheit", 1), "0201": ("Krank teilarbeitsfähig", 1), "0210": ("Krankheit (Militär)", 1), "0211": ("K (Mil) teilarbeitsfähig", 1),
+        "0220": ("Quarantäne", 1), "0222": ("COVID Kinderbetreuung", 1), "0225": ("COVID Risikogruppe", 1), "0300": ("Militär/Zivilschutz", 1),
+        "0400": ("Unfall (NBU)", 1), "0401": ("NBU teilarbeitsfähig", 1), "0405": ("Unfall (BU)", 1), "0406": ("BU teilarbeitsfähig", 1),
+        "0410": ("Unfall (Militär)", 1), "0411": ("Unfall (Mil) teilarbeit", 1), "0800": ("Kompensation Pikett", 1), "0900": ("Kompensation Überzeit", 1),
+        "0910": ("Komp. Überzeit 2", 1), "0915": ("Komp. Überstunden (ÜS)", 1), "0917": ("Komp. Ausdeh. Höchst-AZ", 1), "0920": ("Komp. Nachtdienst 3", 1),
+        "0925": ("Komp. Gleitzeit", 1), "0940": ("Überzeit", 1), "0950": ("Seminar/Kurs", 1), "0960": ("Reisezeitgutschrift", 1), "0970": ("Freistellung PeKo", 1),
+        "1000": ("ab.freier Tag (VJ)", 1), "1010": ("Ausgleichstag", 1), "1020": ("Ruhetag", 1), "1030": ("Komp. CTS", 1), "1040": ("Teilzeittag \"80/20\"", 1),
+        "1050": ("Teilzeittag", 1), "1060": ("Teilzeittag", 1), "1100": ("Auszeit 25", 1), "1110": ("Auszeit 40", 1), "1120": ("Auszeit in Tagen", 1),
+        "1125": ("Auszeit pro rata", 1), "1140": ("Ind. bez. Urlaub IBU", 1), "1150": ("Selbstlernzeit", 1), "8710": ("Weiterbildungsurlaub", 1),
+        "8712": ("ausserschul.Jugendarbeit", 1), "8713": ("Arbeitsenthebung", 1), "8714": ("Freisetzung", 1), "8715": ("Mutterschutz", 1),
+        "8716": ("Adoptionsurlaub", 1), "8717": ("Urlaub Berufsbildung", 1), "8718": ("Frei nach Personenunfall", 1), "8719": ("Untersuch SUVA", 1),
+        "8720": ("Unbezahlter Urlaub", 1), "8721": ("Freistellung", 1), "875A": ("Hochzeit", 1), "875B": ("Vaterschaftsurlaub", 1),
+        "875C": ("Tod Ehegatte,Eltern,Kind", 1), "875D": ("Tod SchEltern,Geschwister", 1), "875E": ("Tod GrEltern/UrGrEltern", 1),
+        "875F": ("Familiäre Gründe", 1), "875G": ("Pflege der Kinder", 1), "875H": ("Stellenbewerbungen", 1), "875I": ("Wohnungswechsel", 1),
+        "875J": ("Vorsprache b. Behörden", 1), "875K": ("Ausübung öffentl. Ämter", 1), "875L": ("Arbeitsjubiläum", 1), "875M": ("Entlassung Wehrpflicht", 1),
+        "875N": ("Vaterschaftsurlaub", 1), "875O": ("Orientierungstag Militär", 1), "876A": ("Feuerwehr/Einsatz b.Alarm", 1), "876B": ("Feuerwehr/Kurs", 1),
+        "876C": ("Aktiver Spitzensport", 1), "876D": ("Ltg. Behindertensport", 1), "876E": ("Wohnungssuche", 1), "876F": ("1.Mai Veranstaltungen", 0),
+        "876G": ("Bild.Veranstalt.Gewerksch", 0), "876H": ("Freiwilliger Zivilschutz", 0), "876I": ("Jugend u.Sport", 0), "877A": ("Urlaubsscheck 1/1", 0),
+        "877B": ("Urlaubsscheck 1/2", 0), "878A": ("Mutterschaftsurlaub", 0), "879A": ("Erziehungsurlaub", 0), "879B": ("Gesetzl. Betr.Urlaub Kind", 0),
+        "9001": ("Leistung (SPX)", 0), "9070": ("Piketteinsatz (SPX)", 0), "9100": ("Pause bez. (30%) (SPX)", 0), "9150": ("Pause unbezahlt (SPX)", 0),
+        "9270": ("Arbeitsunterbrech. (SPX)", 0), "9U00": ("Unterbruch ARF (Ums)", 0), "9U01": ("Unterbruch FLU (Ums)", 0), "I-12": ("Führung/Coaching", 0),
+        "I-14": ("f.-int. Team-/Fachs./KT", 0), "I-15": ("f.-üb. Team-/Fachs./KT", 0), "I-16": ("Offerten für Dritte", 0), "I-17": ("IT-Störungen/Unterbrüche", 0),
+        "I-18": ("PEKO", 0), "I-19": ("Uebriges", 0)
+    }
+    
+    # Arbeitszeit-Codes (alle Codes mit anwesend_flag = 1)
+    arbeitszeit_codes = {code: name for code, (name, flag) in abwesenheitsarten.items() if flag == 1}
+    
+    # Abwesenheits-Codes (alle Codes mit anwesend_flag = 0)
+    abwesenheits_codes = {code: name for code, (name, flag) in abwesenheitsarten.items() if flag == 0}
+    
     # Kategorisierung der Einträge
     df["Kategorie"] = df.apply(
         lambda row: "ICT" if str(row["Kontierungsbeschreibung"]).startswith("PP-UHR ICT") or str(row["Kontierungsnummer"]) in ict_order_numbers else (
             "FLBW" if "FLBW" in str(row["Kontierungsbeschreibung"]) or str(row["Kontierungsnummer"]) in flbw_order_numbers else (
-                "PSP" if "PSP" in str(row["Kontierungstyp"]) else "Anderes"
+                "PSP" if "PSP" in str(row["Kontierungstyp"]) else (
+                    "Arbeitszeit" if str(row["Leistungsart"]) == "LA1624" and str(row["Text AnAbArt"]) in arbeitszeit_codes else (
+                        "Abwesenheit" if str(row["Leistungsart"]) == "LA1624" and str(row["Text AnAbArt"]) in abwesenheits_codes else "Anderes"
+                    )
+                )
             )
         ),
         axis=1
@@ -143,7 +182,9 @@ def transform_data(file_buffer):
         lambda row: (
             extract_number(row["Kontierungsnummer"], num_digits=8) if row["Kategorie"] == "ICT" else (
                 find_keyword(row["Leistung Kurztext"]) if row["Kategorie"] == "FLBW" else (
-                    extract_number(row["Kontierungsnummer"]) if row["Kategorie"] == "PSP" else ""
+                    extract_number(row["Kontierungsnummer"]) if row["Kategorie"] == "PSP" else (
+                        str(row["Kontierungsbeschreibung"]) if row["Kategorie"] in ["Arbeitszeit", "Abwesenheit"] else ""
+                    )
                 )
             )
         ),
