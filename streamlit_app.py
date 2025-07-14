@@ -124,7 +124,7 @@ def transform_data(file_buffer):
     
     # Definition der Leistungsarten für Arbeitszeit/Abwesenheit-Kategorisierung
     arbeitszeit_leistungsarten = {
-        "LA1624", "LA1620", "LA1611", "LA1402", "LA1619", "LA1617", "LA1002", "LA1615", "LA1824", "LA1825"
+        "LA1620", "LA1611", "LA1402", "LA1619", "LA1617", "LA1002", "LA1615", "LA1824", "LA1825"
     }
     
     # Kategorisierung der Einträge
@@ -132,8 +132,10 @@ def transform_data(file_buffer):
         lambda row: "ICT" if str(row["Kontierungsbeschreibung"]).startswith("PP-UHR ICT") or str(row["Kontierungsnummer"]) in ict_order_numbers else (
             "FLBW" if "FLBW" in str(row["Kontierungsbeschreibung"]) or str(row["Kontierungsnummer"]) in flbw_order_numbers else (
                 "PSP" if "PSP" in str(row["Kontierungstyp"]) else (
-                    "Arbeitszeit" if str(row["Leistungsart"]) in arbeitszeit_leistungsarten and str(row["Text AnAbArt"]) in arbeitszeit_codes else (
-                        "Abwesenheit" if str(row["Leistungsart"]) in arbeitszeit_leistungsarten and str(row["Text AnAbArt"]) in abwesenheits_codes else "Anderes"
+                    "Anwesenheit" if pd.notna(row["Lohnart-Langtext"]) and str(row["Lohnart-Langtext"]).strip() != "" else (
+                        "Arbeitsleistung" if str(row["Leistungsart"]) in arbeitszeit_leistungsarten and str(row["Text AnAbArt"]) in arbeitszeit_codes else (
+                            "Abwesenheit" if str(row["Leistungsart"]) in arbeitszeit_leistungsarten and str(row["Text AnAbArt"]) in abwesenheits_codes else "Anderes"
+                        )
                     )
                 )
             )
@@ -188,7 +190,7 @@ def transform_data(file_buffer):
             extract_number(row["Kontierungsnummer"], num_digits=8) if row["Kategorie"] == "ICT" else (
                 find_keyword(row["Leistung Kurztext"]) if row["Kategorie"] == "FLBW" else (
                     extract_number(row["Kontierungsnummer"]) if row["Kategorie"] == "PSP" else (
-                        str(row["Kontierungsbeschreibung"]) if row["Kategorie"] in ["Arbeitszeit", "Abwesenheit"] else ""
+                        str(row["Kontierungsbeschreibung"]) if row["Kategorie"] in ["Arbeitsleistung", "Abwesenheit", "Anwesenheit"] else ""
                     )
                 )
             )
